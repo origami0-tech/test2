@@ -20,9 +20,14 @@ const ThumbnailStep: React.FC<ThumbnailStepProps> = ({
     setIsGenerating(true);
     try {
       const url = await generateThumbnail(prompt);
-      if (url) setThumbnailUrl(url);
-    } catch (e) {
-      alert("Error generating thumbnail");
+      if (url) {
+        setThumbnailUrl(url);
+      } else {
+        alert("Failed to generate thumbnail. The model might have blocked the request due to safety settings.");
+      }
+    } catch (e: any) {
+      console.error(e);
+      alert(`Error generating thumbnail: ${e.message || "Unknown error"}`);
     } finally {
       setIsGenerating(false);
     }

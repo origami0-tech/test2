@@ -97,16 +97,30 @@ export const generateThumbnail = async (prompt: string): Promise<string | null> 
       model: GEMINI_IMAGE_MODEL,
       contents: {
         parts: [
-          { text: `Create a high-contrast, click-baity TikTok thumbnail background for: ${prompt}. Aspect ratio 9:16. Vibrant colors, neon aesthetic.` }
+          { text: `Create a high-contrast, click-baity TikTok thumbnail background for: ${prompt}. Vibrant colors, neon aesthetic.` }
         ]
+      },
+      config: {
+        imageConfig: {
+          aspectRatio: "9:16"
+        }
       }
     });
 
-    for (const part of response.candidates?.[0]?.content?.parts || []) {
+    const parts = response.candidates?.[0]?.content?.parts || [];
+    for (const part of parts) {
       if (part.inlineData) {
         return `data:image/png;base64,${part.inlineData.data}`;
+      } else if (part.text) {
+        console.warn("Model returned text instead of image:", part.text);
       }
     }
+    
+    // If we get here, no image was generated. This might be a safety refusal.
+    if (parts.length > 0 && parts[0].text) {
+        throw new Error(`Model refused to generate image: ${parts[0].text}`);
+    }
+    
     return null;
   } catch (error) {
     console.error("Error generating thumbnail:", error);
