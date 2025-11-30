@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { generateThumbnail } from '../services/geminiService';
-import { Loader2, Image as ImageIcon, Download } from 'lucide-react';
+import { Loader2, Image as ImageIcon, Download, AlertCircle } from 'lucide-react';
 
 interface ThumbnailStepProps {
   selectedIdeaHook: string;
@@ -14,20 +14,28 @@ const ThumbnailStep: React.FC<ThumbnailStepProps> = ({
 }) => {
   const [prompt, setPrompt] = useState(selectedIdeaHook || '');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleGenerate = async () => {
     if (!prompt) return;
     setIsGenerating(true);
+    setError(null);
+    setThumbnailUrl(null);
+    
     try {
       const url = await generateThumbnail(prompt);
       if (url) {
         setThumbnailUrl(url);
       } else {
-        alert("Failed to generate thumbnail. The model might have blocked the request due to safety settings.");
+        setError("Failed to generate thumbnail. The model might have blocked the request due to safety settings.");
       }
     } catch (e: any) {
       console.error(e);
-      alert(`Error generating thumbnail: ${e.message || "Unknown error"}`);
+      // Clean up error message
+      const msg = e.message || "Unknown error occurred";
+      // Remove generic error prefixes if present
+      const cleanMsg = msg.replace(/^Error: /, '').replace(/\[.*?\]/, '');
+      setError(cleanMsg);
     } finally {
       setIsGenerating(false);
     }
@@ -46,10 +54,18 @@ const ThumbnailStep: React.FC<ThumbnailStepProps> = ({
               className="w-full bg-black border border-zinc-700 rounded-xl p-4 text-white focus:border-[#25F4EE] outline-none h-32 mb-4"
               placeholder="Describe the background image..."
             />
+            
+            {error && (
+              <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg flex gap-3 items-start">
+                <AlertCircle className="text-red-500 shrink-0 mt-0.5" size={16} />
+                <p className="text-red-200 text-xs">{error}</p>
+              </div>
+            )}
+
             <button
               onClick={handleGenerate}
               disabled={isGenerating}
-              className="w-full bg-[#FE2C55] hover:bg-[#D91B40] disabled:opacity-50 text-white px-6 py-3 rounded-xl font-bold flex justify-center items-center gap-2 transition-all"
+              className="w-full bg-[#FE2C55] hover:bg-[#D91B40] disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-3 rounded-xl font-bold flex justify-center items-center gap-2 transition-all"
             >
               {isGenerating ? <Loader2 className="animate-spin" /> : <ImageIcon size={20} />}
               Generate AI Image
@@ -72,6 +88,15 @@ const ThumbnailStep: React.FC<ThumbnailStepProps> = ({
                ) : (
                  <div className="w-full h-full flex items-center justify-center bg-zinc-900 text-zinc-600">
                     <p className="text-center px-4">Preview will appear here</p>
+                 </div>
+               )}
+               
+               {isGenerating && (
+                 <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-30">
+                    <div className="text-center">
+                      <Loader2 className="animate-spin text-[#25F4EE] mx-auto mb-2" size={32}/>
+                      <p className="text-xs text-[#25F4EE]">Generating...</p>
+                    </div>
                  </div>
                )}
             </div>
