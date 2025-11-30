@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import StepIndicator from './components/StepIndicator';
 import IdeationStep from './components/IdeationStep';
@@ -5,7 +6,7 @@ import ScriptStep from './components/ScriptStep';
 import MetadataStep from './components/MetadataStep';
 import ThumbnailStep from './components/ThumbnailStep';
 import UploadStep from './components/UploadStep';
-import { PrivacyPolicy, TermsOfService } from './components/LegalPages';
+import { PrivacyPolicyPage, TermsOfServicePage } from './components/LegalPages';
 import AuthCallback from './components/AuthCallback';
 import { ContentStep, GeneratedContent, VideoIdea, TikTokAccount, ScheduledPost } from './types';
 import { Video } from 'lucide-react';
@@ -16,9 +17,14 @@ const App: React.FC = () => {
   if (pathname === '/auth/callback') {
     return <AuthCallback />;
   }
+  if (pathname === '/privacy-policy') {
+    return <PrivacyPolicyPage />;
+  }
+  if (pathname === '/terms-of-service') {
+    return <TermsOfServicePage />;
+  }
 
   const [currentStep, setCurrentStep] = useState<ContentStep>(ContentStep.IDEATION);
-  const [activeLegalPage, setActiveLegalPage] = useState<'privacy' | 'tos' | null>(null);
   
   // State for Linked Accounts with Persistence
   const [accounts, setAccounts] = useState<TikTokAccount[]>(() => {
@@ -160,29 +166,21 @@ const App: React.FC = () => {
         <footer className="mt-20 border-t border-zinc-900 pt-8 flex flex-col items-center gap-4 text-zinc-600 text-xs">
            <p>Designed for Creator Productivity. Not affiliated with TikTok.</p>
            <div className="flex gap-6">
-              <button 
-                onClick={() => setActiveLegalPage('tos')}
+              <a 
+                href="/terms-of-service"
                 className="hover:text-white transition-colors"
               >
                 Terms of Service
-              </button>
-              <button 
-                onClick={() => setActiveLegalPage('privacy')}
+              </a>
+              <a 
+                href="/privacy-policy"
                 className="hover:text-white transition-colors"
               >
                 Privacy Policy
-              </button>
+              </a>
            </div>
         </footer>
       </div>
-
-      {/* Legal Modals */}
-      {activeLegalPage === 'privacy' && (
-        <PrivacyPolicy onClose={() => setActiveLegalPage(null)} />
-      )}
-      {activeLegalPage === 'tos' && (
-        <TermsOfService onClose={() => setActiveLegalPage(null)} />
-      )}
     </div>
   );
 };
