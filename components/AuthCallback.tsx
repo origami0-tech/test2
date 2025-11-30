@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { CheckCircle2, Copy } from 'lucide-react';
 
@@ -34,22 +35,19 @@ const AuthCallback: React.FC = () => {
             <p>To complete the connection, please follow these steps:</p>
             
             <div className="bg-black/40 p-5 rounded-xl border border-zinc-800 space-y-3 font-mono text-xs">
-              <p>1. Look at the URL in your browser — it will look like:</p>
-              <p className="text-zinc-500 break-all">https://deluxe-tiramisu-518c32.netlify.app/auth/callback?code=XXXXXX&state=YYYYYY</p>
+              <p>1. Copy the <strong>Authorization Code</strong> below.</p>
               
-              <p>2. Copy the value after <span className="text-[#25F4EE]">“code=”</span>.</p>
+              <p>2. Return to the main app window.</p>
               
-              <p>3. Return to the app and paste the code when asked.</p>
-            </div>
+              <p>3. Select <strong>"Exchange Code"</strong> in the Link Account menu.</p>
 
-            <p className="text-center text-zinc-500 text-xs mt-4">
-              This page is only used for redirecting after TikTok login.
-            </p>
+              <p>4. Paste your code and your TikTok App's Client Key/Secret.</p>
+            </div>
           </div>
 
           {code && (
             <div className="w-full animate-fadeIn mt-4">
-               <label className="block text-xs font-medium text-zinc-500 mb-2">Detected Code:</label>
+               <label className="block text-xs font-medium text-zinc-500 mb-2">Authorization Code:</label>
                <div className="flex gap-2">
                  <input 
                    type="text" 

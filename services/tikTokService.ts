@@ -15,17 +15,67 @@ interface TikTokUserResponse {
   error: {
     code: string;
     message: string;
+    log_id: string;
   }
 }
+
+interface TokenResponse {
+  access_token: string;
+  expires_in: number;
+  open_id: string;
+  refresh_token: string;
+  refresh_expires_in: number;
+  scope: string;
+  token_type: string;
+  error?: string;
+  error_description?: string;
+}
+
+/**
+ * Exchanges an Authorization Code for an Access Token
+ */
+export const exchangeTikTokCode = async (
+  clientKey: string,
+  clientSecret: string,
+  code: string,
+  redirectUri: string
+): Promise<string | null> => {
+  try {
+    const params = new URLSearchParams();
+    params.append('client_key', clientKey);
+    params.append('client_secret', clientSecret);
+    params.append('code', code);
+    params.append('grant_type', 'authorization_code');
+    params.append('redirect_uri', redirectUri);
+
+    const response = await fetch(`${TIKTOK_API_BASE}/oauth/token/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Cache-Control': 'no-cache'
+      },
+      body: params
+    });
+
+    const json: TokenResponse = await response.json();
+
+    if (json.error || !json.access_token) {
+      console.error("Token Exchange Error:", json.error_description || json.error);
+      return null;
+    }
+
+    return json.access_token;
+  } catch (error) {
+    console.error("Failed to exchange token:", error);
+    return null;
+  }
+};
 
 /**
  * Validates an access token and retrieves user info
  */
 export const validateTikTokToken = async (accessToken: string): Promise<{ username: string, avatarUrl: string } | null> => {
   try {
-    // Note: In a real production app, this call should be proxied through a backend to handle CORS 
-    // or the OAuth flow should be handled server-side.
-    // For this tool, we attempt a direct fetch.
     const response = await fetch(`${TIKTOK_API_BASE}/user/info/?fields=display_name,avatar_url`, {
       method: 'GET',
       headers: {
@@ -48,7 +98,7 @@ export const validateTikTokToken = async (accessToken: string): Promise<{ userna
 
     const user = json.data.user;
     return {
-      username: user.display_name, // TikTok V2 API often returns display_name. The handle might be separate.
+      username: user.display_name,
       avatarUrl: user.avatar_url
     };
   } catch (error) {
@@ -79,7 +129,7 @@ export const uploadVideoToTikTok = async (
       body: JSON.stringify({
         post_info: {
           title: caption,
-          privacy_level: 'SELF_ONLY', // Default to private for safety in automation tools
+          privacy_level: 'SELF_ONLY', // Default to private for safety
           disable_duet: false,
           disable_comment: false,
           disable_stitch: false,

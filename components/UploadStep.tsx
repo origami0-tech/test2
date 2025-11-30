@@ -1,9 +1,9 @@
 
 import React, { useState } from 'react';
 import { GeneratedContent, TikTokAccount, ScheduledPost } from '../types';
-import { validateTikTokToken, uploadVideoToTikTok } from '../services/tikTokService';
+import { validateTikTokToken, uploadVideoToTikTok, exchangeTikTokCode } from '../services/tikTokService';
 import { TIKTOK_COLORS } from '../constants';
-import { UploadCloud, CheckCircle2, AlertTriangle, FileVideo, Copy, Calendar, UserPlus, Users, Clock, Trash2, ExternalLink, Key } from 'lucide-react';
+import { UploadCloud, CheckCircle2, AlertTriangle, FileVideo, Copy, Calendar, UserPlus, Users, Clock, Trash2, ExternalLink, Key, RefreshCw } from 'lucide-react';
 
 interface UploadStepProps {
   content: GeneratedContent;
@@ -24,14 +24,24 @@ const UploadStep: React.FC<UploadStepProps> = ({
   
   // UI States for adding account
   const [showAddAccount, setShowAddAccount] = useState(false);
-  const [newUsername, setNewUsername] = useState('');
-  const [useRealApi, setUseRealApi] = useState(false);
-  const [accessToken, setAccessToken] = useState('');
+  const [authMethod, setAuthMethod] = useState<'simulation' | 'token' | 'code'>('simulation');
+  
+  // Inputs
+  const [newUsername, setNewUsername] = useState(''); // Sim
+  const [accessToken, setAccessToken] = useState(''); // Token
+  
+  // OAuth Inputs
+  const [clientKey, setClientKey] = useState('');
+  const [clientSecret, setClientSecret] = useState('');
+  const [authCode, setAuthCode] = useState('');
+
   const [isValidating, setIsValidating] = useState(false);
 
   // Scheduling State
   const [isScheduling, setIsScheduling] = useState(!!content.scheduledTime);
   const [scheduleDate, setScheduleDate] = useState(content.scheduledTime || '');
+
+  const redirectUri = window.location.origin + '/auth/callback';
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -41,28 +51,26 @@ const UploadStep: React.FC<UploadStepProps> = ({
 
   const handleAddAccountSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsValidating(true);
     
-    if (useRealApi) {
-      if (!accessToken.trim()) return;
-      setIsValidating(true);
-      const userInfo = await validateTikTokToken(accessToken);
-      setIsValidating(false);
+    let finalToken = '';
 
-      if (userInfo) {
-         const newAccount: TikTokAccount = {
-           id: Date.now().toString(),
-           username: userInfo.username,
-           avatarColor: TIKTOK_COLORS.cyan, // We could use userInfo.avatarUrl if we built a proper image component
-           accessToken: accessToken
-         };
-         onAddAccount(newAccount);
-         resetAddForm();
-      } else {
-         alert("Invalid Access Token or API Error. Please check your credentials.");
-      }
-    } else {
-      // Simulation Mode
-      if (newUsername.trim()) {
+    // 1. Resolve Token
+    if (authMethod === 'code') {
+       const token = await exchangeTikTokCode(clientKey, clientSecret, authCode, redirectUri);
+       if (!token) {
+         alert("Failed to exchange Authorization Code. Please check Client Key, Secret, and ensure the Code hasn't expired.");
+         setIsValidating(false);
+         return;
+       }
+       finalToken = token;
+    } else if (authMethod === 'token') {
+       finalToken = accessToken.trim();
+    }
+
+    // 2. Validate Token or Create Sim Account
+    if (authMethod === 'simulation') {
+       if (newUsername.trim()) {
         const newAccount: TikTokAccount = {
           id: Date.now().toString(),
           username: newUsername.startsWith('@') ? newUsername : `@${newUsername}`,
@@ -71,13 +79,36 @@ const UploadStep: React.FC<UploadStepProps> = ({
         onAddAccount(newAccount);
         resetAddForm();
       }
+    } else {
+      // Validate Real Token
+      if (!finalToken) {
+         setIsValidating(false);
+         return; 
+      }
+      
+      const userInfo = await validateTikTokToken(finalToken);
+      if (userInfo) {
+         const newAccount: TikTokAccount = {
+           id: Date.now().toString(),
+           username: userInfo.username,
+           avatarColor: TIKTOK_COLORS.cyan,
+           accessToken: finalToken
+         };
+         onAddAccount(newAccount);
+         resetAddForm();
+      } else {
+         alert("Invalid Access Token or API Error. Please check your credentials.");
+      }
     }
+    setIsValidating(false);
   };
 
   const resetAddForm = () => {
     setNewUsername('');
     setAccessToken('');
-    setUseRealApi(false);
+    setAuthCode('');
+    setClientKey('');
+    setClientSecret('');
     setShowAddAccount(false);
   };
 
@@ -112,8 +143,6 @@ const UploadStep: React.FC<UploadStepProps> = ({
       }
     } else {
       // --- SIMULATION (Or Scheduled) ---
-      // TikTok API V2 does not support scheduling via API easily for personal accounts.
-      // We assume scheduling is handled by our "backend" (simulation).
       runSimulation();
     }
   };
@@ -172,18 +201,69 @@ const UploadStep: React.FC<UploadStepProps> = ({
 
             {showAddAccount && (
               <form onSubmit={handleAddAccountSubmit} className="mb-4 bg-black/50 p-4 rounded-xl border border-zinc-800 animate-fadeIn">
-                <div className="flex items-center gap-2 mb-3">
-                   <input 
-                     type="checkbox" 
-                     id="useRealApi"
-                     checked={useRealApi}
-                     onChange={(e) => setUseRealApi(e.target.checked)}
-                     className="accent-[#25F4EE]"
-                   />
-                   <label htmlFor="useRealApi" className="text-xs text-zinc-400 select-none cursor-pointer">Use Real TikTok API (Developer Mode)</label>
+                
+                {/* Auth Method Selector */}
+                <div className="flex gap-2 mb-4">
+                   <button 
+                     type="button" 
+                     onClick={() => setAuthMethod('simulation')}
+                     className={`flex-1 py-1 text-[10px] rounded border ${authMethod === 'simulation' ? 'bg-[#25F4EE]/10 border-[#25F4EE] text-[#25F4EE]' : 'border-zinc-700 text-zinc-500'}`}
+                   >
+                     Simulation
+                   </button>
+                   <button 
+                     type="button" 
+                     onClick={() => setAuthMethod('code')}
+                     className={`flex-1 py-1 text-[10px] rounded border ${authMethod === 'code' ? 'bg-[#25F4EE]/10 border-[#25F4EE] text-[#25F4EE]' : 'border-zinc-700 text-zinc-500'}`}
+                   >
+                     Exchange Code
+                   </button>
+                   <button 
+                     type="button" 
+                     onClick={() => setAuthMethod('token')}
+                     className={`flex-1 py-1 text-[10px] rounded border ${authMethod === 'token' ? 'bg-[#25F4EE]/10 border-[#25F4EE] text-[#25F4EE]' : 'border-zinc-700 text-zinc-500'}`}
+                   >
+                     Paste Token
+                   </button>
                 </div>
 
-                {useRealApi ? (
+                {authMethod === 'code' && (
+                  <div className="space-y-3 mb-3">
+                     <div>
+                       <label className="text-[10px] text-zinc-400">Client Key</label>
+                       <input
+                          type="text"
+                          value={clientKey}
+                          onChange={(e) => setClientKey(e.target.value)}
+                          className="w-full bg-black border border-zinc-700 rounded px-2 py-1.5 text-xs text-white focus:border-[#25F4EE] outline-none"
+                        />
+                     </div>
+                     <div>
+                       <label className="text-[10px] text-zinc-400">Client Secret</label>
+                       <input
+                          type="password"
+                          value={clientSecret}
+                          onChange={(e) => setClientSecret(e.target.value)}
+                          className="w-full bg-black border border-zinc-700 rounded px-2 py-1.5 text-xs text-white focus:border-[#25F4EE] outline-none"
+                        />
+                     </div>
+                     <div>
+                       <label className="text-[10px] text-zinc-400">Authorization Code (from Redirect)</label>
+                       <input
+                          type="text"
+                          value={authCode}
+                          onChange={(e) => setAuthCode(e.target.value)}
+                          className="w-full bg-black border border-zinc-700 rounded px-2 py-1.5 text-xs text-white focus:border-[#25F4EE] outline-none font-mono"
+                        />
+                     </div>
+                     <div className="p-2 bg-zinc-800/50 rounded border border-zinc-700">
+                        <p className="text-[10px] text-zinc-500 mb-1">Your App Redirect URI must be exactly:</p>
+                        <code className="text-[10px] text-[#25F4EE] break-all block">{redirectUri}</code>
+                     </div>
+                  </div>
+                )}
+
+                {authMethod === 'token' && (
                    <div className="space-y-2 mb-3">
                       <div className="relative">
                         <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500"/>
@@ -191,13 +271,14 @@ const UploadStep: React.FC<UploadStepProps> = ({
                           type="password"
                           value={accessToken}
                           onChange={(e) => setAccessToken(e.target.value)}
-                          placeholder="Paste TikTok Access Token"
+                          placeholder="Paste Access Token"
                           className="w-full bg-black border border-zinc-700 rounded-lg pl-9 pr-3 py-2 text-sm text-white focus:border-[#25F4EE] outline-none"
                         />
                       </div>
-                      <p className="text-[10px] text-zinc-600">Requires 'video.publish' and 'user.info.basic' scopes.</p>
                    </div>
-                ) : (
+                )}
+
+                {authMethod === 'simulation' && (
                   <div className="mb-3">
                      <input
                       type="text"
@@ -205,16 +286,16 @@ const UploadStep: React.FC<UploadStepProps> = ({
                       onChange={(e) => setNewUsername(e.target.value)}
                       placeholder="@username"
                       className="w-full bg-black border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:border-[#25F4EE] outline-none"
-                      autoFocus
                     />
                   </div>
                 )}
                 
                 <button 
                   type="submit"
-                  disabled={(useRealApi && !accessToken) || (!useRealApi && !newUsername) || isValidating}
-                  className="w-full bg-[#25F4EE] text-black px-4 py-2 rounded-lg text-sm font-bold hover:bg-[#1FD6D1] disabled:opacity-50 transition-colors"
+                  disabled={isValidating}
+                  className="w-full bg-[#25F4EE] text-black px-4 py-2 rounded-lg text-sm font-bold hover:bg-[#1FD6D1] disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
                 >
+                  {isValidating ? <RefreshCw className="animate-spin" size={14}/> : <UserPlus size={14}/>}
                   {isValidating ? 'Connecting...' : 'Connect Account'}
                 </button>
               </form>
