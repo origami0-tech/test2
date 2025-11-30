@@ -6,10 +6,17 @@ import MetadataStep from './components/MetadataStep';
 import ThumbnailStep from './components/ThumbnailStep';
 import UploadStep from './components/UploadStep';
 import { PrivacyPolicy, TermsOfService } from './components/LegalPages';
+import AuthCallback from './components/AuthCallback';
 import { ContentStep, GeneratedContent, VideoIdea, TikTokAccount, ScheduledPost } from './types';
 import { Video } from 'lucide-react';
 
 const App: React.FC = () => {
+  // Simple Routing Logic
+  const pathname = window.location.pathname;
+  if (pathname === '/auth/callback') {
+    return <AuthCallback />;
+  }
+
   const [currentStep, setCurrentStep] = useState<ContentStep>(ContentStep.IDEATION);
   const [activeLegalPage, setActiveLegalPage] = useState<'privacy' | 'tos' | null>(null);
   
